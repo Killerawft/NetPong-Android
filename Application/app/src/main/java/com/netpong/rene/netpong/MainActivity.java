@@ -1,31 +1,21 @@
 package com.netpong.rene.netpong;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.math.BigInteger;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.SocketException;
-import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Iterator;
+import java.nio.charset.StandardCharsets;
 
 import android.net.Uri;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.os.AsyncTask;
 import android.os.Bundle;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
+import android.os.Handler;
+import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
-import android.text.format.Formatter;
+import android.text.Editable;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -53,6 +43,9 @@ public class MainActivity extends AppCompatActivity {
     private GoogleApiClient client;
     private SensorManager sensorManager;
     private long lastUpdate;
+    String recieveString;
+    String IpStart; //Anfang der IP. Aus dem Wifi heraus genommen
+    String GameIPStr; //Gesamte IP Adresse. IpStart + vom Benutzer eingegeben
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -72,8 +65,8 @@ public class MainActivity extends AppCompatActivity {
         WifiInfo wifiInfo = wifiMgr.getConnectionInfo();
         int OwnIp = wifiInfo.getIpAddress();
         //Den Anfang der IP Adresse vorgeben.
-        etIPStart.setText(String.format("%d.%d.%d.", (OwnIp & 0xff), (OwnIp >> 8 & 0xff),(OwnIp >> 16 & 0xff)));
-
+        IpStart = String.format("%d.%d.%d.", (OwnIp & 0xff), (OwnIp >> 8 & 0xff),(OwnIp >> 16 & 0xff));
+        etIPStart.setText(IpStart);
 
         //Sensor Manager initialisieren
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
@@ -81,42 +74,93 @@ public class MainActivity extends AppCompatActivity {
 
         bCon1.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                String GameIPStr;
+                Button bCon1 = (Button) findViewById(R.id.bCon1);
+                Button bCon2 = (Button) findViewById(R.id.bCon2);
 
-                WifiManager wifiMgr = (WifiManager) getSystemService(WIFI_SERVICE);
-                WifiInfo wifiInfo = wifiMgr.getConnectionInfo();
-                int OwnIp = wifiInfo.getIpAddress();
-
-                GameIPStr = String.format("%d.%d.%d.%d", (OwnIp & 0xff), (OwnIp >> 8 & 0xff),(OwnIp >> 16 & 0xff), Integer.parseInt(etIPEnd.getText().toString()));
+                GameIPStr = String.format(IpStart + "%d", Integer.parseInt(etIPEnd.getText().toString()));
 
                 try {
                     InetAddress GameIP = InetAddress.getByName(GameIPStr);
-                    if (connectPlayer(etName.getText().toString(), 1, GameIP))
-                        bCon2.setEnabled(false);
+                    connectPlayer(etName.getText().toString(), 1, GameIP);
                 } catch (IOException e) {
                     // TODO Auto-generated catch block
                     e.printStackTrace();
                 }
+
+                Toast.makeText(MainActivity.this, "Verbinde...", Toast.LENGTH_SHORT);
+
+                while(recieveString == null) //Auf füllen des Strings warten
+                {
+
+                }
+                if (recieveString.startsWith("NP_OK")) {
+                    bCon1.setEnabled(false);
+                    bCon2.setEnabled(false);
+                    Toast.makeText(MainActivity.this, "Spieler 1 verbunden", Toast.LENGTH_SHORT);
+                } else if (recieveString.startsWith("NP_NOK")) {
+                    bCon1.setEnabled(true);
+                    bCon2.setEnabled(true);
+                    Toast.makeText(MainActivity.this, "Spieler 1 bereits vorhanden", Toast.LENGTH_SHORT);
+                } else if (recieveString.startsWith("Error Rec")){
+                    bCon1.setEnabled(true);
+                    bCon2.setEnabled(true);
+                    Toast.makeText(MainActivity.this, "Fehler beim Empfang", Toast.LENGTH_SHORT);
+                } else if (recieveString.startsWith("Error Send")){
+                    bCon1.setEnabled(true);
+                    bCon2.setEnabled(true);
+                    Toast.makeText(MainActivity.this, "Fehler beim Senden", Toast.LENGTH_SHORT);
+                } else {
+                    bCon1.setEnabled(true);
+                    bCon2.setEnabled(true);
+                    Toast.makeText(MainActivity.this, "Unerwarteter Fehler", Toast.LENGTH_SHORT);
+                }
+
         }
         });
 
         bCon2.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                String GameIPStr;
 
-                WifiManager wifiMgr = (WifiManager) getSystemService(WIFI_SERVICE);
-                WifiInfo wifiInfo = wifiMgr.getConnectionInfo();
-                int OwnIp = wifiInfo.getIpAddress();
+                Button bCon1 = (Button) findViewById(R.id.bCon1);
+                Button bCon2 = (Button) findViewById(R.id.bCon2);
 
-                GameIPStr = String.format("%d.%d.%d.%d", (OwnIp & 0xff), (OwnIp >> 8 & 0xff),(OwnIp >> 16 & 0xff), (Integer.parseInt(etIPEnd.getText().toString()) >> 24 & 0xff));
+                GameIPStr = String.format(IpStart + "%d", Integer.parseInt(etIPEnd.getText().toString()));
 
-                try {
+                try{
                     InetAddress GameIP = InetAddress.getByName(GameIPStr);
-                    if (connectPlayer(etName.getText().toString(), 2, GameIP))
-                        bCon1.setEnabled(false);
+                    connectPlayer(etName.getText().toString(), 2, GameIP);
                 } catch (IOException e) {
                     // TODO Auto-generated catch block
                     e.printStackTrace();
+                }
+
+                Toast.makeText(MainActivity.this, "Verbinde...", Toast.LENGTH_SHORT);
+
+                while(recieveString == null) //Auf füllen des Strings warten
+                {
+
+                }
+
+                if (recieveString.startsWith("NP_OK")) {
+                    bCon1.setEnabled(false);
+                    bCon2.setEnabled(false);
+                    Toast.makeText(MainActivity.this, "Spieler 2 verbunden", Toast.LENGTH_SHORT);
+                } else if (recieveString.startsWith("NP_NOK")){
+                    bCon1.setEnabled(true);
+                    bCon2.setEnabled(true);
+                    Toast.makeText(MainActivity.this, "Spieler 2 bereits vorhanden", Toast.LENGTH_SHORT);
+                } else if (recieveString.startsWith("Error Rec")){
+                    bCon1.setEnabled(true);
+                    bCon2.setEnabled(true);
+                    Toast.makeText(MainActivity.this, "Fehler beim Empfang", Toast.LENGTH_SHORT);
+                } else if (recieveString.startsWith("Error Send")){
+                    bCon1.setEnabled(true);
+                    bCon2.setEnabled(true);
+                    Toast.makeText(MainActivity.this, "Fehler beim Senden", Toast.LENGTH_SHORT);
+                } else {
+                    bCon1.setEnabled(true);
+                    bCon2.setEnabled(true);
+                    Toast.makeText(MainActivity.this, "Unerwarteter Fehler", Toast.LENGTH_SHORT);
                 }
             }
         });
@@ -167,46 +211,91 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    public boolean connectPlayer(String Name, int PlayerNr, InetAddress IPAddress) throws IOException {
+    public void connectPlayer(final String Name, final int PlayerNr, final InetAddress IPAddress)
+    {
+        new Thread(new Runnable()  //Als eigenen Thread
+        {
+            @Override
+            public void run() {
 
-        int GamePort = 2222;
+                final Button bCon1 = (Button) findViewById(R.id.bCon1);
+                final Button bCon2 = (Button) findViewById(R.id.bCon2);
 
-        byte[] send_bytes;
-        String send_data;
-        byte[] receiveData = null;
-        String recieveString;
+                int GamePort = 2222;
 
-        WifiManager wifiMgr = (WifiManager) getSystemService(WIFI_SERVICE);
-        WifiInfo wifiInfo = wifiMgr.getConnectionInfo();
-        int OwnIp = wifiInfo.getIpAddress();
+                byte[] send_bytes;
+                String send_data;
 
-        String OwnIpStr = String.format("%d.%d.%d.%d", (OwnIp & 0xff), (OwnIp >> 8 & 0xff),(OwnIp >> 16 & 0xff), (OwnIp >> 24 & 0xff));
+                byte[] receiveData = new byte[10];
 
-        DatagramSocket client_socket = new DatagramSocket();
+                int timeout = 3000;
 
-        send_data = "N" + Integer.toString(PlayerNr) + ";" + Name + ";" + OwnIpStr;
+                WifiManager wifiMgr = (WifiManager) getSystemService(WIFI_SERVICE);
+                WifiInfo wifiInfo = wifiMgr.getConnectionInfo();
+                int OwnIp = wifiInfo.getIpAddress();
 
-        send_bytes = send_data.getBytes();
+                String OwnIpStr = String.format("%d.%d.%d.%d", (OwnIp & 0xff), (OwnIp >> 8 & 0xff), (OwnIp >> 16 & 0xff), (OwnIp >> 24 & 0xff));
 
-        DatagramPacket send_packet = new DatagramPacket(send_bytes, send_data.length(), IPAddress, GamePort);
-        client_socket.send(send_packet);
+                send_data = "N" + Integer.toString(PlayerNr - 1) + ";" + Name + ";" + OwnIpStr;
 
-        DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
-        client_socket.receive(receivePacket);
+                send_bytes = send_data.getBytes();
 
-        client_socket.close();
+                DatagramPacket send_packet = new DatagramPacket(send_bytes, send_bytes.length, IPAddress, GamePort);
 
-        recieveString = new String(receivePacket.getData());
-        //System.out.println("FROM SERVER:" + modifiedSentence);
-        if (recieveString == "NP_OK") {
-            recieveString = null;
-            return true;
-        }
-        else {
-            recieveString = null;
-            return false;
+                try {
+                    DatagramSocket client_socket = new DatagramSocket(GamePort);
+
+                    client_socket.setSoTimeout(timeout);
+                    client_socket.send(send_packet);
+
+                    client_socket.close();
+                } catch (IOException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                    recieveString = "Error Send";
+                }
+
+
+
+                DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+
+                try {
+                    DatagramSocket client_socket = new DatagramSocket(GamePort);
+
+                    client_socket.setSoTimeout(timeout);
+                    client_socket.receive(receivePacket);
+
+                    client_socket.close();
+                    recieveString = new String(receivePacket.getData(), receivePacket.getOffset(), receivePacket.getLength(), StandardCharsets.UTF_8);
+                } catch (IOException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                    recieveString = "Error Rec";
+                }
+            }
+        }).start();
+    }
+
+/*
+    public void sendmovement(final int PlayerNr, final InetAddress IPAddress)
+    {
+        new Thread(new Runnable()  //Als eigenen Thread
+        {
+            @Override
+            public void run() {
+
+
+
+            }).start();
         }
     }
+*/
+
+
+
+
+
+
 
 
     /**
