@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.math.BigInteger;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -30,11 +31,18 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.TextView;
 
 import com.google.android.gms.appindexing.Action;
 import com.google.android.gms.appindexing.AppIndex;
 import com.google.android.gms.appindexing.Thing;
 import com.google.android.gms.common.api.GoogleApiClient;
+
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+import android.widget.Toast;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -43,6 +51,8 @@ public class MainActivity extends AppCompatActivity {
      * See https://g.co/AppIndexing/AndroidStudio for more information.
      */
     private GoogleApiClient client;
+    private SensorManager sensorManager;
+    private long lastUpdate;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,13 +64,34 @@ public class MainActivity extends AppCompatActivity {
         final Button bCon1 = (Button) findViewById(R.id.bCon1);
         final Button bCon2 = (Button) findViewById(R.id.bCon2);
         final EditText etName = (EditText) findViewById(R.id.etName);
+        final EditText etIPEnd = (EditText) findViewById(R.id.etIPEnd);
+        final TextView etIPStart = (TextView) findViewById(R.id.etIPStart);
+
+        //Eigene IP Adresse auslesen
+        WifiManager wifiMgr = (WifiManager) getSystemService(WIFI_SERVICE);
+        WifiInfo wifiInfo = wifiMgr.getConnectionInfo();
+        int OwnIp = wifiInfo.getIpAddress();
+        //Den Anfang der IP Adresse vorgeben.
+        etIPStart.setText(String.format("%d.%d.%d.", (OwnIp & 0xff), (OwnIp >> 8 & 0xff),(OwnIp >> 16 & 0xff)));
+
+
+        //Sensor Manager initialisieren
+        sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        lastUpdate = System.currentTimeMillis();
 
         bCon1.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
+                String GameIPStr;
 
+                WifiManager wifiMgr = (WifiManager) getSystemService(WIFI_SERVICE);
+                WifiInfo wifiInfo = wifiMgr.getConnectionInfo();
+                int OwnIp = wifiInfo.getIpAddress();
+
+                GameIPStr = String.format("%d.%d.%d.%d", (OwnIp & 0xff), (OwnIp >> 8 & 0xff),(OwnIp >> 16 & 0xff), Integer.parseInt(etIPEnd.getText().toString()));
 
                 try {
-                    if (connectPlayer(etName.getText().toString(), 1))
+                    InetAddress GameIP = InetAddress.getByName(GameIPStr);
+                    if (connectPlayer(etName.getText().toString(), 1, GameIP))
                         bCon2.setEnabled(false);
                 } catch (IOException e) {
                     // TODO Auto-generated catch block
@@ -71,9 +102,17 @@ public class MainActivity extends AppCompatActivity {
 
         bCon2.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
+                String GameIPStr;
+
+                WifiManager wifiMgr = (WifiManager) getSystemService(WIFI_SERVICE);
+                WifiInfo wifiInfo = wifiMgr.getConnectionInfo();
+                int OwnIp = wifiInfo.getIpAddress();
+
+                GameIPStr = String.format("%d.%d.%d.%d", (OwnIp & 0xff), (OwnIp >> 8 & 0xff),(OwnIp >> 16 & 0xff), (Integer.parseInt(etIPEnd.getText().toString()) >> 24 & 0xff));
 
                 try {
-                    if (connectPlayer(etName.getText().toString(), 2))
+                    InetAddress GameIP = InetAddress.getByName(GameIPStr);
+                    if (connectPlayer(etName.getText().toString(), 2, GameIP))
                         bCon1.setEnabled(false);
                 } catch (IOException e) {
                     // TODO Auto-generated catch block
@@ -117,7 +156,18 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    public boolean connectPlayer(String Name, int PlayerNr) throws IOException {
+    public void onSensorChanged(SensorEvent event) {
+        if (event.sensor.getType() == Sensor.TYPE_GYROSCOPE && System.currentTimeMillis() - lastUpdate > 3000) { //Nur alle 10ms ausführen
+            getAccelerometer(event);
+        }
+    }
+
+    private void getAccelerometer(SensorEvent event) {
+        Toast.makeText(this, String.format("Neigung Y: %d", event.values[1]), Toast.LENGTH_SHORT);
+    }
+
+
+    public boolean connectPlayer(String Name, int PlayerNr, InetAddress IPAddress) throws IOException {
 
         int GamePort = 2222;
 
@@ -125,16 +175,16 @@ public class MainActivity extends AppCompatActivity {
         String send_data;
         byte[] receiveData = null;
         String recieveString;
-        final EditText etIP = (EditText) findViewById(R.id.etIP);
 
         WifiManager wifiMgr = (WifiManager) getSystemService(WIFI_SERVICE);
         WifiInfo wifiInfo = wifiMgr.getConnectionInfo();
         int OwnIp = wifiInfo.getIpAddress();
 
-        DatagramSocket client_socket = new DatagramSocket(GamePort);
-        InetAddress IPAddress = InetAddress.getByName(etIP.getText().toString());
+        String OwnIpStr = String.format("%d.%d.%d.%d", (OwnIp & 0xff), (OwnIp >> 8 & 0xff),(OwnIp >> 16 & 0xff), (OwnIp >> 24 & 0xff));
 
-        send_data = "N" + Integer.toString(PlayerNr) + ";" + Name + ";" + Integer.toString(OwnIp);
+        DatagramSocket client_socket = new DatagramSocket();
+
+        send_data = "N" + Integer.toString(PlayerNr) + ";" + Name + ";" + OwnIpStr;
 
         send_bytes = send_data.getBytes();
 
@@ -157,6 +207,7 @@ public class MainActivity extends AppCompatActivity {
             return false;
         }
     }
+
 
     /**
      * ATTENTION: This was auto-generated to implement the App Indexing API.
