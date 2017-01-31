@@ -414,9 +414,12 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onSensorChanged(SensorEvent event) {
 
-            if (System.currentTimeMillis() - lastUpdate > 10 && ConPlayer > 0) { //Alle 10 ms
+            if (System.currentTimeMillis() - lastUpdate > 1 && ConPlayer > 0) { //Alle 10 ms
+                TextView tvSensData = (TextView) findViewById(R.id.tvSensData);
+
                 sendmove(event.values[1]);
                 //Toast.makeText(MainActivity.this, String.format("Neigung Y: %f", event.values[1]), Toast.LENGTH_SHORT).show();
+                tvSensData.setText(String.format("Sensor Data: %f", event.values[1]));
                 lastUpdate = System.currentTimeMillis();
             }
         }
