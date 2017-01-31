@@ -6,15 +6,12 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 
-import android.app.Activity;
 import android.content.Context;
 import android.net.Uri;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
-import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -88,9 +85,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (sensor != null) {
             sensorService.registerListener(mySensorEventListener, sensor, SensorManager.SENSOR_DELAY_NORMAL);
-            Log.i("GYROSCOPE MainActivity", "Registerered for ORIENTATION Sensor");
         } else {
-            Log.e("GYROSCOPE MainActivity", "Registerered for ORIENTATION Sensor");
             Toast.makeText(this, "GYROSCOPE Sensor not found", Toast.LENGTH_LONG).show();
             finish();
         }
