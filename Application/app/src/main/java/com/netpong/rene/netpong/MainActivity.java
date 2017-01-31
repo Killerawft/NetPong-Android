@@ -6,19 +6,20 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 
+import android.app.Activity;
+import android.content.Context;
 import android.net.Uri;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
-import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
-import android.text.Editable;
+import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -41,21 +42,27 @@ public class MainActivity extends AppCompatActivity {
      * See https://g.co/AppIndexing/AndroidStudio for more information.
      */
     private GoogleApiClient client;
-    private SensorManager sensorManager;
-    private long lastUpdate;
+    private static SensorManager sensorService;
+    private Sensor sensor;
+
     String recieveString;
     String IpStart; //Anfang der IP. Aus dem Wifi heraus genommen
     String GameIPStr; //Gesamte IP Adresse. IpStart + vom Benutzer eingegeben
+    String OwnIpStr; //Eigene IP als String
+    int ConPlayer = 0; //Die Zahl des verbundenen Spielers. 0 = Nicht verbunden; 1 = Spieler 1; 2 = Spieler 2
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
 
         final Button bCon1 = (Button) findViewById(R.id.bCon1);
         final Button bCon2 = (Button) findViewById(R.id.bCon2);
+        final Button bDisc = (Button) findViewById(R.id.bDisc);
         final EditText etName = (EditText) findViewById(R.id.etName);
         final EditText etIPEnd = (EditText) findViewById(R.id.etIPEnd);
         final TextView etIPStart = (TextView) findViewById(R.id.etIPStart);
@@ -64,30 +71,41 @@ public class MainActivity extends AppCompatActivity {
         WifiManager wifiMgr = (WifiManager) getSystemService(WIFI_SERVICE);
         WifiInfo wifiInfo = wifiMgr.getConnectionInfo();
         int OwnIp = wifiInfo.getIpAddress();
+
         //Den Anfang der IP Adresse vorgeben.
         IpStart = String.format("%d.%d.%d.", (OwnIp & 0xff), (OwnIp >> 8 & 0xff),(OwnIp >> 16 & 0xff));
         etIPStart.setText(IpStart);
 
+        //eigenen IP String setzten
+        OwnIpStr = IpStart + String.format("%d", (OwnIp >> 24 & 0xff));
+
         //Sensor Manager initialisieren
-        sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
-        lastUpdate = System.currentTimeMillis();
+        sensorService = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+        sensor = sensorService.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+
+        if (sensor != null) {
+            sensorService.registerListener(mySensorEventListener, sensor, SensorManager.SENSOR_DELAY_NORMAL);
+            Log.i("GYROSCOPE MainActivity", "Registerered for ORIENTATION Sensor");
+        } else {
+            Log.e("GYROSCOPE MainActivity", "Registerered for ORIENTATION Sensor");
+            Toast.makeText(this, "GYROSCOPE Sensor not found", Toast.LENGTH_LONG).show();
+            finish();
+        }
+
 
         bCon1.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
+            public void onClick(View v) { // Spieler 1 verbinden
+
                 Button bCon1 = (Button) findViewById(R.id.bCon1);
                 Button bCon2 = (Button) findViewById(R.id.bCon2);
 
+                Context ToastContext = getApplicationContext();
+                CharSequence ToastText = "";
+                int ToastDuration = Toast.LENGTH_SHORT;
+
                 GameIPStr = String.format(IpStart + "%d", Integer.parseInt(etIPEnd.getText().toString()));
 
-                try {
-                    InetAddress GameIP = InetAddress.getByName(GameIPStr);
-                    connectPlayer(etName.getText().toString(), 1, GameIP);
-                } catch (IOException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }
-
-                Toast.makeText(MainActivity.this, "Verbinde...", Toast.LENGTH_SHORT);
+                connectPlayer(etName.getText().toString(), 1);
 
                 while(recieveString == null) //Auf füllen des Strings warten
                 {
@@ -96,72 +114,76 @@ public class MainActivity extends AppCompatActivity {
                 if (recieveString.startsWith("NP_OK")) {
                     bCon1.setEnabled(false);
                     bCon2.setEnabled(false);
-                    Toast.makeText(MainActivity.this, "Spieler 1 verbunden", Toast.LENGTH_SHORT);
+                    ToastText = "Spieler 1 verbunden";
+                    ConPlayer = 1;
                 } else if (recieveString.startsWith("NP_NOK")) {
                     bCon1.setEnabled(true);
                     bCon2.setEnabled(true);
-                    Toast.makeText(MainActivity.this, "Spieler 1 bereits vorhanden", Toast.LENGTH_SHORT);
+                    ToastText =  "Spieler 1 bereits vorhanden";
                 } else if (recieveString.startsWith("Error Rec")){
                     bCon1.setEnabled(true);
                     bCon2.setEnabled(true);
-                    Toast.makeText(MainActivity.this, "Fehler beim Empfang", Toast.LENGTH_SHORT);
+                    ToastText =  "Fehler beim Empfang";
                 } else if (recieveString.startsWith("Error Send")){
                     bCon1.setEnabled(true);
                     bCon2.setEnabled(true);
-                    Toast.makeText(MainActivity.this, "Fehler beim Senden", Toast.LENGTH_SHORT);
+                    ToastText =  "Fehler beim Senden";
                 } else {
                     bCon1.setEnabled(true);
                     bCon2.setEnabled(true);
-                    Toast.makeText(MainActivity.this, "Unerwarteter Fehler", Toast.LENGTH_SHORT);
+                    ToastText =  "Unerwarteter Fehler";
                 }
+
+                Toast.makeText(ToastContext, ToastText, ToastDuration).show();
+                recieveString = null; //String löschen, damit der nächste mit while auf füllen des Strings warten kann
 
         }
         });
 
         bCon2.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
+            public void onClick(View v) { // Spieler 2 Verbinden
 
                 Button bCon1 = (Button) findViewById(R.id.bCon1);
                 Button bCon2 = (Button) findViewById(R.id.bCon2);
 
+                Context ToastContext = getApplicationContext();
+                CharSequence ToastText = "";
+                int ToastDuration = Toast.LENGTH_SHORT;
+
                 GameIPStr = String.format(IpStart + "%d", Integer.parseInt(etIPEnd.getText().toString()));
 
-                try{
-                    InetAddress GameIP = InetAddress.getByName(GameIPStr);
-                    connectPlayer(etName.getText().toString(), 2, GameIP);
-                } catch (IOException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }
-
-                Toast.makeText(MainActivity.this, "Verbinde...", Toast.LENGTH_SHORT);
+                connectPlayer(etName.getText().toString(), 2);
 
                 while(recieveString == null) //Auf füllen des Strings warten
                 {
 
                 }
-
                 if (recieveString.startsWith("NP_OK")) {
                     bCon1.setEnabled(false);
                     bCon2.setEnabled(false);
-                    Toast.makeText(MainActivity.this, "Spieler 2 verbunden", Toast.LENGTH_SHORT);
-                } else if (recieveString.startsWith("NP_NOK")){
+                    ToastText = "Spieler 2 verbunden";
+                    ConPlayer = 2;
+                } else if (recieveString.startsWith("NP_NOK")) {
                     bCon1.setEnabled(true);
                     bCon2.setEnabled(true);
-                    Toast.makeText(MainActivity.this, "Spieler 2 bereits vorhanden", Toast.LENGTH_SHORT);
+                    ToastText =  "Spieler 2 bereits vorhanden";
                 } else if (recieveString.startsWith("Error Rec")){
                     bCon1.setEnabled(true);
                     bCon2.setEnabled(true);
-                    Toast.makeText(MainActivity.this, "Fehler beim Empfang", Toast.LENGTH_SHORT);
+                    ToastText =  "Fehler beim Empfang";
                 } else if (recieveString.startsWith("Error Send")){
                     bCon1.setEnabled(true);
                     bCon2.setEnabled(true);
-                    Toast.makeText(MainActivity.this, "Fehler beim Senden", Toast.LENGTH_SHORT);
+                    ToastText =  "Fehler beim Senden";
                 } else {
                     bCon1.setEnabled(true);
                     bCon2.setEnabled(true);
-                    Toast.makeText(MainActivity.this, "Unerwarteter Fehler", Toast.LENGTH_SHORT);
+                    ToastText =  "Unerwarteter Fehler";
                 }
+
+                Toast.makeText(ToastContext, ToastText, ToastDuration).show();
+                recieveString = null; //String löschen, damit der nächste mit while auf füllen des Strings warten kann
+
             }
         });
 
@@ -200,18 +222,8 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    public void onSensorChanged(SensorEvent event) {
-        if (event.sensor.getType() == Sensor.TYPE_GYROSCOPE && System.currentTimeMillis() - lastUpdate > 3000) { //Nur alle 10ms ausführen
-            getAccelerometer(event);
-        }
-    }
 
-    private void getAccelerometer(SensorEvent event) {
-        Toast.makeText(this, String.format("Neigung Y: %d", event.values[1]), Toast.LENGTH_SHORT);
-    }
-
-
-    public void connectPlayer(final String Name, final int PlayerNr, final InetAddress IPAddress)
+    public void connectPlayer(final String Name, final int PlayerNr)
     {
         new Thread(new Runnable()  //Als eigenen Thread
         {
@@ -230,19 +242,14 @@ public class MainActivity extends AppCompatActivity {
 
                 int timeout = 3000;
 
-                WifiManager wifiMgr = (WifiManager) getSystemService(WIFI_SERVICE);
-                WifiInfo wifiInfo = wifiMgr.getConnectionInfo();
-                int OwnIp = wifiInfo.getIpAddress();
-
-                String OwnIpStr = String.format("%d.%d.%d.%d", (OwnIp & 0xff), (OwnIp >> 8 & 0xff), (OwnIp >> 16 & 0xff), (OwnIp >> 24 & 0xff));
-
                 send_data = "N" + Integer.toString(PlayerNr - 1) + ";" + Name + ";" + OwnIpStr;
-
                 send_bytes = send_data.getBytes();
 
-                DatagramPacket send_packet = new DatagramPacket(send_bytes, send_bytes.length, IPAddress, GamePort);
 
                 try {
+                    InetAddress IPAddress =  InetAddress.getByName(GameIPStr);
+                    DatagramPacket send_packet = new DatagramPacket(send_bytes, send_bytes.length, IPAddress, GamePort);
+
                     DatagramSocket client_socket = new DatagramSocket(GamePort);
 
                     client_socket.setSoTimeout(timeout);
@@ -276,24 +283,85 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
-/*
-    public void sendmovement(final int PlayerNr, final InetAddress IPAddress)
+
+    public void sendmove(final float SensVal)
     {
         new Thread(new Runnable()  //Als eigenen Thread
         {
             @Override
             public void run() {
 
+                int GamePort = 2222;
+
+                byte[] send_bytes;
+                String send_data;
+
+                int timeout = 3000;
+
+                send_data = "S" + Integer.toString(ConPlayer - 1) + ";" + "M";
+
+                if (SensVal < (-3.0)) //Nach Links geneigt
+                {
+                    send_data += "L";
+                    //Toast.makeText(getApplicationContext(), "Links", Toast.LENGTH_SHORT).show();
+                }
+                else if (SensVal > 3.0) //Nach Rechts geneigt
+                {
+                    send_data += "R";
+                    //Toast.makeText(getApplicationContext(), "Rechts", Toast.LENGTH_SHORT).show();
+                }
+                else
+                    return;    //Wenn in der Mitte, nichts senden
+
+                send_bytes = send_data.getBytes();
+
+                try {
+                    InetAddress IPAddress = InetAddress.getByName(GameIPStr);
+                    DatagramPacket send_packet = new DatagramPacket(send_bytes, send_bytes.length, IPAddress, GamePort);
+
+                    DatagramSocket client_socket = new DatagramSocket(GamePort);
+
+                    client_socket.setSoTimeout(timeout);
+                    client_socket.send(send_packet);
+
+                    client_socket.close();
+                } catch (IOException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+
+            }
+        }).start();
+    }
 
 
-            }).start();
+
+
+    private SensorEventListener mySensorEventListener = new SensorEventListener() {
+
+        private long lastUpdate;
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+        }
+
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+
+            if (System.currentTimeMillis() - lastUpdate > 10 && ConPlayer > 0) { //Alle 10 ms
+                sendmove(event.values[1]);
+                //Toast.makeText(MainActivity.this, String.format("Neigung Y: %f", event.values[1]), Toast.LENGTH_SHORT).show();
+                lastUpdate = System.currentTimeMillis();
+            }
+        }
+    };
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (sensor != null) {
+            sensorService.unregisterListener(mySensorEventListener);
         }
     }
-*/
-
-
-
-
 
 
 
@@ -334,4 +402,3 @@ public class MainActivity extends AppCompatActivity {
         client.disconnect();
     }
 }
-
