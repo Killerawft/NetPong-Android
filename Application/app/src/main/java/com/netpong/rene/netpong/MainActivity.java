@@ -67,6 +67,9 @@ public class MainActivity extends AppCompatActivity {
         final EditText etIPEnd = (EditText) findViewById(R.id.etIPEnd);
         final TextView etIPStart = (TextView) findViewById(R.id.etIPStart);
 
+        bDisc.setEnabled(false);
+        ConPlayer = 0;
+
         //Eigene IP Adresse auslesen
         WifiManager wifiMgr = (WifiManager) getSystemService(WIFI_SERVICE);
         WifiInfo wifiInfo = wifiMgr.getConnectionInfo();
@@ -98,6 +101,7 @@ public class MainActivity extends AppCompatActivity {
 
                 Button bCon1 = (Button) findViewById(R.id.bCon1);
                 Button bCon2 = (Button) findViewById(R.id.bCon2);
+                Button bDisc = (Button) findViewById(R.id.bDisc);
 
                 Context ToastContext = getApplicationContext();
                 CharSequence ToastText = "";
@@ -116,6 +120,7 @@ public class MainActivity extends AppCompatActivity {
                     bCon2.setEnabled(false);
                     ToastText = "Spieler 1 verbunden";
                     ConPlayer = 1;
+                    bDisc.setEnabled(true);
                 } else if (recieveString.startsWith("NP_NOK")) {
                     bCon1.setEnabled(true);
                     bCon2.setEnabled(true);
@@ -145,6 +150,7 @@ public class MainActivity extends AppCompatActivity {
 
                 Button bCon1 = (Button) findViewById(R.id.bCon1);
                 Button bCon2 = (Button) findViewById(R.id.bCon2);
+                Button bDisc = (Button) findViewById(R.id.bDisc);
 
                 Context ToastContext = getApplicationContext();
                 CharSequence ToastText = "";
@@ -163,6 +169,7 @@ public class MainActivity extends AppCompatActivity {
                     bCon2.setEnabled(false);
                     ToastText = "Spieler 2 verbunden";
                     ConPlayer = 2;
+                    bDisc.setEnabled(true);
                 } else if (recieveString.startsWith("NP_NOK")) {
                     bCon1.setEnabled(true);
                     bCon2.setEnabled(true);
@@ -185,6 +192,24 @@ public class MainActivity extends AppCompatActivity {
                 recieveString = null; //String löschen, damit der nächste mit while auf füllen des Strings warten kann
 
             }
+        });
+
+
+        bDisc.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                SendDisconnect();
+                while (ConPlayer != 0) //Auf Disconnect wareten
+                {
+
+                }
+
+                bCon1.setEnabled(true);
+                bCon2.setEnabled(true);
+                bDisc.setEnabled(false);
+
+                Toast.makeText(getApplicationContext(), "Verbindung getrennt", Toast.LENGTH_SHORT).show();
+            }
+
         });
 
         // ATTENTION: This was auto-generated to implement the App Indexing API.
@@ -229,9 +254,6 @@ public class MainActivity extends AppCompatActivity {
         {
             @Override
             public void run() {
-
-                final Button bCon1 = (Button) findViewById(R.id.bCon1);
-                final Button bCon2 = (Button) findViewById(R.id.bCon2);
 
                 int GamePort = 2222;
 
@@ -329,6 +351,51 @@ public class MainActivity extends AppCompatActivity {
                     // TODO Auto-generated catch block
                     e.printStackTrace();
                 }
+
+            }
+        }).start();
+    }
+
+
+    public void SendDisconnect()
+    {
+        new Thread(new Runnable()  //Als eigenen Thread
+        {
+            @Override
+            public void run() {
+
+                final Button bCon1 = (Button) findViewById(R.id.bCon1);
+                final Button bCon2 = (Button) findViewById(R.id.bCon2);
+                final Button bDisc = (Button) findViewById(R.id.bDisc);
+
+                int GamePort = 2222;
+
+                byte[] send_bytes;
+                String send_data;
+
+                int timeout = 3000;
+
+                send_data = "D" + Integer.toString(ConPlayer - 1);
+
+                send_bytes = send_data.getBytes();
+
+                try {
+                    InetAddress IPAddress = InetAddress.getByName(GameIPStr);
+                    DatagramPacket send_packet = new DatagramPacket(send_bytes, send_bytes.length, IPAddress, GamePort);
+
+                    DatagramSocket client_socket = new DatagramSocket(GamePort);
+
+                    client_socket.setSoTimeout(timeout);
+                    client_socket.send(send_packet);
+
+                    client_socket.close();
+                } catch (IOException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                    return;
+                }
+
+                ConPlayer = 0;
 
             }
         }).start();
