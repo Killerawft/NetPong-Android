@@ -61,8 +61,6 @@ public class MainActivity extends AppCompatActivity {
         final Button bCon2 = (Button) findViewById(R.id.bCon2);
         final Button bDisc = (Button) findViewById(R.id.bDisc);
         final EditText etName = (EditText) findViewById(R.id.etName);
-        final EditText etIPEnd = (EditText) findViewById(R.id.etIPEnd);
-        final TextView etIPStart = (TextView) findViewById(R.id.etIPStart);
 
         bDisc.setEnabled(false);
         ConPlayer = 0;
@@ -73,11 +71,11 @@ public class MainActivity extends AppCompatActivity {
         int OwnIp = wifiInfo.getIpAddress();
 
         //Den Anfang der IP Adresse vorgeben.
-        IpStart = String.format("%d.%d.%d.", (OwnIp & 0xff), (OwnIp >> 8 & 0xff),(OwnIp >> 16 & 0xff));
-        etIPStart.setText(IpStart);
+        //IpStart = String.format("%d.%d.%d.", (OwnIp & 0xff), (OwnIp >> 8 & 0xff),(OwnIp >> 16 & 0xff));
+        //etIPStart.setText(IpStart);
 
         //eigenen IP String setzten
-        OwnIpStr = IpStart + String.format("%d", (OwnIp >> 24 & 0xff));
+        OwnIpStr = String.format("%d.%d.%d.%d", (OwnIp & 0xff), (OwnIp >> 8 & 0xff),(OwnIp >> 16 & 0xff), (OwnIp >> 24 & 0xff));
 
         //Sensor Manager initialisieren
         sensorService = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
@@ -97,12 +95,16 @@ public class MainActivity extends AppCompatActivity {
                 Button bCon1 = (Button) findViewById(R.id.bCon1);
                 Button bCon2 = (Button) findViewById(R.id.bCon2);
                 Button bDisc = (Button) findViewById(R.id.bDisc);
+                EditText etIP = (EditText) findViewById(R.id.etIP);
 
                 Context ToastContext = getApplicationContext();
                 CharSequence ToastText = "";
                 int ToastDuration = Toast.LENGTH_SHORT;
 
-                GameIPStr = String.format(IpStart + "%d", Integer.parseInt(etIPEnd.getText().toString()));
+                GameIPStr = etIP.getText().toString();
+
+                if (GameIPStr == "" || ConPlayer != 0)
+                    return;
 
                 connectPlayer(etName.getText().toString(), 1);
 
@@ -146,12 +148,16 @@ public class MainActivity extends AppCompatActivity {
                 Button bCon1 = (Button) findViewById(R.id.bCon1);
                 Button bCon2 = (Button) findViewById(R.id.bCon2);
                 Button bDisc = (Button) findViewById(R.id.bDisc);
+                EditText etIP = (EditText) findViewById(R.id.etIP);
 
                 Context ToastContext = getApplicationContext();
                 CharSequence ToastText = "";
                 int ToastDuration = Toast.LENGTH_SHORT;
 
-                GameIPStr = String.format(IpStart + "%d", Integer.parseInt(etIPEnd.getText().toString()));
+                GameIPStr = etIP.getText().toString();
+
+                if (GameIPStr == "" || ConPlayer != 0)
+                    return;
 
                 connectPlayer(etName.getText().toString(), 2);
 
@@ -201,6 +207,8 @@ public class MainActivity extends AppCompatActivity {
                 bCon1.setEnabled(true);
                 bCon2.setEnabled(true);
                 bDisc.setEnabled(false);
+
+                recieveString = null;
 
                 Toast.makeText(getApplicationContext(), "Verbindung getrennt", Toast.LENGTH_SHORT).show();
             }
